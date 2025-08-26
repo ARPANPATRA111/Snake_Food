@@ -5,7 +5,7 @@ import json
 import random
 import signal
 import sys
-from game_logic import Snake, WIDTH, HEIGHT
+from game_logic import Snake, WIDTH, HEIGHT, INITIAL_SNAKE_LENGTH
 
 HOST = '0.0.0.0'
 PORT = 12345
@@ -70,9 +70,20 @@ def handle_client(conn, player_id):
                         if snakes[player_id].is_alive:
                             snakes[player_id].set_direction(cmd)
                     elif cmd == 'RESPAWN' and not snakes[player_id].is_alive:
-                        start_y = random.randint(5, HEIGHT - 6)
-                        start_x = random.randint(5, WIDTH - 6)
-                        snakes[player_id].respawn(start_x, start_y)
+                        while True:
+                            start_y = random.randint(5, HEIGHT - 6)
+                            start_x = random.randint(5, WIDTH - 6)
+                            temp_body = [(start_y, start_x - i) for i in range(INITIAL_SNAKE_LENGTH)]
+                            occupied = False
+                            for existing_snake in snakes.values():
+                                if any(part in existing_snake.body for part in temp_body):
+                                    occupied = True
+                                    break
+                            if food_pos in temp_body:
+                                occupied = True
+                            if not occupied:
+                                snakes[player_id].respawn(start_x, start_y)
+                                break
     finally:
         print(f"[CONNECTION CLOSED] Player {player_id} has left.")
         with game_state_lock:
@@ -89,19 +100,25 @@ def game_loop():
 
     while server_running:
         start_time = time.time()
-        msg_data = None
-        current_clients = []
-
+        
         with game_state_lock:
-            active_snakes = {pid: s for pid, s in snakes.items() if s.is_alive}
-            for pid, snake in active_snakes.items():
+            active_snakes = [s for s in snakes.values() if s.is_alive]
+            
+            for snake in active_snakes:
                 snake.move()
+
+            food_was_eaten = False
+            for pid, snake in snakes.items():
+                if not snake.is_alive: continue
+
                 if snake.body[0] == food_pos:
                     snake.grow()
-                    spawn_food()
-                others = [s for p2, s in active_snakes.items() if p2 != pid]
+                    food_was_eaten = True
+                others = [s for s in active_snakes if s.id != pid]
                 snake.check_collision(others)
 
+            if food_was_eaten:
+                spawn_food()
             broadcast_state = {
                 'type': 'game_state',
                 'snakes': {pid: s.to_dict() for pid, s in snakes.items()},
@@ -113,7 +130,7 @@ def game_loop():
         for conn in current_clients:
             try:
                 conn.sendall(msg_data)
-            except (ConnectionResetError, BrokenPipeError, OSError):
+            except (OSError):
                 with game_state_lock:
                     pid = clients.pop(conn, None)
                     if pid and pid in snakes:
@@ -142,7 +159,7 @@ def main():
     """Initializes and starts the server."""
     global next_player_id, server_socket
     signal.signal(signal.SIGINT, shutdown_server)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # IPv4 && TCP
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((HOST, PORT))
     server_socket.settimeout(1.0)
@@ -155,16 +172,26 @@ def main():
         try:
             conn, addr = server_socket.accept()
             with game_state_lock:
-                pid = next_player_id
-                clients[conn] = pid
-                start_y = random.randint(5, HEIGHT - 6)
-                start_x = random.randint(5, WIDTH - 6)
-                snakes[pid] = Snake(pid, start_x, start_y)
-                next_player_id += 1
-            threading.Thread(target=handle_client, args=(conn, pid), daemon=True).start()
-        except socket.timeout: continue
-        except OSError: break
-
+                while True:
+                    start_y = random.randint(5, HEIGHT - 6)
+                    start_x = random.randint(5, WIDTH - 6)
+                    temp_body = [(start_y, start_x - i) for i in range(INITIAL_SNAKE_LENGTH)]
+                    occupied = False
+                    for existing_snake in snakes.values():
+                        if any(part in existing_snake.body for part in temp_body):
+                            occupied = True
+                            break
+                    if not occupied:
+                        pid = next_player_id
+                        clients[conn] = pid
+                        snakes[pid] = Snake(pid, start_x, start_y)
+                        next_player_id += 1
+                        threading.Thread(target=handle_client, args=(conn, pid), daemon=True).start()
+                        break
+        except socket.timeout:
+            continue
+        except OSError:
+            break
     print("[MAIN THREAD] Exiting.")
 
 if __name__ == '__main__':
