@@ -1,0 +1,62 @@
+Screen {
+    align: center middle;
+    background: #1e1e2e;
+    color: #cdd6f4;
+}
+
+Header {
+    dock: top;
+    height: 3;
+    background: #11111b;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+    background: #11111b;
+}
+
+#app-container {
+    layout: horizontal;
+    width: auto;
+    height: auto;
+}
+
+/* FIX: Updated dimensions to match new game_logic.py values */
+#game_board {
+    width: 42;  /* WIDTH (40) + 2 for border */
+    height: 22; /* HEIGHT (20) + 2 for border */
+}
+
+#scoreboard {
+    width: 30;
+    height: 22; /* Match the game board height */
+    border: round #a6e3a1;
+    padding: 1;
+    margin-left: 2;
+}
+
+#game_over_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    padding: 0 1;
+    width: 40;
+    height: 13;
+    border: thick #f38ba8;
+    background: #313244;
+}
+
+#game_over_label, #final_score_label {
+    column-span: 2;
+    text-align: center;
+    width: 100%;
+}
+
+#game_over_label {
+    margin-top: 1;
+    text-style: bold;
+}
+
+#replay, #quit {
+    width: 100%;
+}

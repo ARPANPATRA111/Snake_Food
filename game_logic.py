@@ -1,9 +1,10 @@
 import random
 
-WIDTH = 50
+WIDTH = 40
 HEIGHT = 20
 INITIAL_SNAKE_LENGTH = 3
-SNAKE_SYMBOL = '■'
+SNAKE_BODY_SYMBOL = '■'
+SNAKE_HEAD_SYMBOL = '⬢' # to denote the head i m using this symbol
 FOOD_SYMBOL = '●'
 
 class Snake:
